@@ -6,6 +6,10 @@ const defaultBetValue = 0;
 const maxBetValue = 1000;
 const maxGuessValue = 5;
 import prettyNum from "pretty-num";
+import { findLastBits } from "../utils";
+// import shuffle from lodash
+import WordContainer from "../components/WordContainer";
+import _ from "lodash";
 
 export default function Home() {
   const [seed, setSeed] = useState("");
@@ -27,7 +31,7 @@ export default function Home() {
   const [guessArray, setGuessArray] = useState([]);
 
   useEffect(() => {
-    let mnemonic = bip39.generateMnemonic();
+    let mnemonic = bip39.generateMnemonic(256);
     setSeed(mnemonic);
     let mnemonicArray = mnemonic.split(" ");
     let localBinary = "";
@@ -37,7 +41,7 @@ export default function Home() {
       let paddedBinary = binary.padStart(11, "0");
       localBinary += paddedBinary;
     }
-    setEntropyBits(localBinary.slice(0, -4));
+    setEntropyBits(localBinary.slice(0, -8));
   }, []);
 
   useEffect(() => {
@@ -47,29 +51,48 @@ export default function Home() {
   }, [winStatus]);
 
   useEffect(() => {
-    let hexString = "";
-    chunkArrayOfBits(entropyBits, 4).map((nibble) => {
-      hexString += parseInt(nibble, 2).toString(16);
-    });
-    setHexString(hexString);
-    // Get last seven digits of entropyBits
-    let lastSeven = entropyBits.slice(-7);
-    console.log("lastSeven");
-    // create a array 1-15 of binary strings
-    let binaryArray = [];
-    for (let i = 0; i < 16; i++) {
-      binaryArray.push(i.toString(2).padStart(4, "0"));
-    }
+    // let hexString = "";
+    // chunkArrayOfBits(entropyBits, 4).map((nibble) => {
+    //   hexString += parseInt(nibble, 2).toString(16);
+    // });
+    // setHexString(hexString);
+    // // Get last seven digits of entropyBits
+    // let lastSeven = entropyBits.slice(-7);
+    // console.log("lastSeven");
+    // // create a array 1-15 of binary strings
+    // let binaryArray = [];
+    // for (let i = 0; i < 16; i++) {
+    //   binaryArray.push(i.toString(2).padStart(4, "0"));
+    // }
+    // let lastWordCandidates = [];
+    // binaryArray
+    //   .map((binary) => lastSeven + binary)
+    //   .map((binary) => {
+    //     // convert binary to decimal, map to wordList
+    //     let decimal = parseInt(binary, 2);
+    //     let word = wordList[decimal];
+    //     lastWordCandidates.push(word);
+    //   });
+    // setLastWordArray(lastWordCandidates);
     let lastWordCandidates = [];
-    binaryArray
-      .map((binary) => lastSeven + binary)
-      .map((binary) => {
-        // convert binary to decimal, map to wordList
-        let decimal = parseInt(binary, 2);
-        let word = wordList[decimal];
-        lastWordCandidates.push(word);
-      });
-    setLastWordArray(lastWordCandidates);
+    let startingSeed = findLastBits(entropyBits);
+    // pick 15 random words from wordList, add to lastWordCandidates
+    for (let i = 0; i < 15; i++) {
+      let randomIndex = Math.floor(Math.random() * wordList.length);
+      // if word is already in lastWordCandidates or is the last word of the seed, choose word again
+      if (
+        lastWordCandidates.includes(wordList[randomIndex]) ||
+        wordList[randomIndex] === startingSeed
+      ) {
+        i--;
+      } else {
+        lastWordCandidates.push(wordList[randomIndex]);
+      }
+    }
+    // push last word of seed to lastWordCandidates
+    lastWordCandidates.push(startingSeed.split(" ").pop());
+    console.log("lastWordCandidates", lastWordCandidates);
+    setLastWordArray(_.shuffle(lastWordCandidates));
   }, [entropyBits]);
 
   useEffect(() => {
@@ -174,38 +197,47 @@ export default function Home() {
           ) : null}
           <div className="grid grid-cols-4 grid-rows-4">
             {lastWordArray.map((word) => (
-              <p
-                onMouseOver={() => setActiveWord(word)}
-                className={
-                  (activeWord == word && gameOver == false) ||
-                  guessArray.includes(word)
-                    ? `text-2xl pt-10 pb-10 float-left p-2 text-center cursor-pointer ${
-                        guessArray.includes(word) ? "bg-red-300" : "bg-white"
-                      } text-black`
-                    : "text-2xl pt-10 pb-10 float-left p-2 text-center cursor-none"
-                }
-                onClick={() =>
-                  checkAnswer({
-                    word,
-                    wagerAmount: Number(betValue / 100) * maxBetValue,
-                  })
-                    ? setWinStatus(true)
-                    : recordLoss({ word })
-                }
-              >
-                {word}
-              </p>
+              <WordContainer
+                setActiveWord={setActiveWord}
+                word={word}
+                checkAnswer={checkAnswer}
+                gameOver={gameOver}
+                activeWord={activeWord}
+                guessArray={guessArray}
+                setWinStatus={setWinStatus}
+                recordLoss={recordLoss}
+              />
+              // <p
+              //   onMouseOver={() => setActiveWord(word)}
+              // className={
+              //   (activeWord == word && gameOver == false) ||
+              //   guessArray.includes(word)
+              //     ? `text-2xl pt-10 pb-10 float-left p-1 text-center cursor-pointer bg-white text-black`
+              //     : "text-2xl pt-10 pb-10 float-left p-1 text-center cursor-none"
+              // }
+              // onClick={() =>
+              //   checkAnswer({
+              //     word,
+              //     wagerAmount: Number(betValue / 100) * maxBetValue,
+              //   })
+              //     ? setWinStatus(true)
+              //     : recordLoss({ word })
+              // }
+              // >
+              //   {word}
+              // </p>
             ))}
           </div>
 
           <div>
-            {/* Container for seed words, centered */}
-            <div className="flex flex-row justify-center mt-10">
+            {/* Container for seed words, centered 12 x 2 grid */}
+
+            <div className="grid grid-cols-12 grid-rows-2 justify-center">
               {seed.split(" ").map((word, index) => {
                 return index < 5 || gameOver == true ? (
-                  <p className="float-left p-2 text-3xl">{word}</p>
+                  <p className="float-left p-2 text-3xl text-center">{word}</p>
                 ) : (
-                  <p className="float-left p-2 text-3xl">_____</p>
+                  <p className="float-left p-2 text-3xl text-center">_____</p>
                 );
               })}
             </div>
